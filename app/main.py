@@ -74,7 +74,8 @@ def configurer_journaux() -> logging.Logger:
     for nom in (SERVICE, "psycopg.pool", "uvicorn", "uvicorn.error"):
         journal = logging.getLogger(nom)
         journal.handlers = [sortie]
-        journal.setLevel(niveau)
+        # Le pool de connexions écrit 3 lignes INFO par requête : on ne garde que ses alertes.
+        journal.setLevel("WARNING" if nom == "psycopg.pool" else niveau)
         journal.propagate = False
     return logging.getLogger(SERVICE)
 
@@ -315,7 +316,8 @@ async def observer(request: Request, call_next):
         if reponse.status_code >= 500
         else (logging.WARNING if reponse.status_code >= 400 else logging.INFO)
     )
-    if route != "/metrics":
+    # Pas de journal pour /metrics (Prometheus) ni / (healthcheck Docker) : ce serait du bruit.
+    if route not in ("/metrics", "/"):
         log.log(
             niveau,
             "%s %s %s",

@@ -28,8 +28,9 @@ build: ## Construit l'image de l'application
 	docker build -t api-commandes:local app/
 
 test-app: ## Lance le lint et les tests de l'application dans un conteneur
-	docker run --rm -v "$(PWD)/app:/app" -w /app python:3.13-slim \
-	  sh -c "pip install -q -r requirements-dev.txt && ruff check . && ruff format --check . && pytest -q"
+	docker run --rm -v "$(PWD)/app:/app" -w /app -e PYTHONDONTWRITEBYTECODE=1 python:3.13-slim \
+	  sh -c "pip install -q --root-user-action=ignore --disable-pip-version-check -r requirements-dev.txt \
+	  && ruff check --no-cache . && ruff format --no-cache --check . && pytest -q -p no:cacheprovider"
 
 clean: ## Arrête la pile et SUPPRIME les volumes (données perdues)
 	$(COMPOSE) down -v
