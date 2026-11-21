@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help env up down restart ps logs build test-app clean
+.PHONY: help env up down restart ps logs build test-app clean up-debug down-debug
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -34,3 +34,9 @@ test-app: ## Lance le lint et les tests de l'application dans un conteneur
 
 clean: ## Arrête la pile et SUPPRIME les volumes (données perdues)
 	$(COMPOSE) down -v
+
+up-debug: ## Démarre la pile avec les ports de débogage
+	$(COMPOSE) -f compose.yaml -f compose.debug.yaml up -d --build
+
+down-debug: ## Arrête la pile démarrée en mode débogage
+	$(COMPOSE) -f compose.yaml -f compose.debug.yaml down

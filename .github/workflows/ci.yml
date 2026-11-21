@@ -47,3 +47,20 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  compose:
+    name: Compose (syntaxe)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: cp .env.example .env
+      - run: docker compose config -q
+
+  prometheus:
+    name: Prometheus (promtool)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: >
+          docker run --rm -v "$PWD/prometheus:/etc/prometheus:ro"
+          --entrypoint promtool prom/prometheus:v3.13.5
+          check config /etc/prometheus/prometheus.yml

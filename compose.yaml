@@ -34,7 +34,7 @@ services:
       CHAOS_ENABLED: ${CHAOS_ENABLED}
       APP_VERSION: ${APP_VERSION}
       LOG_LEVEL: ${LOG_LEVEL}
-    networks: [app]
+    networks: [app, monitoring]
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,9 +47,33 @@ services:
       resources:
         limits:
           memory: 128M
-
+          
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_VERSION}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=2GB
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - donnees-prometheus:/prometheus                                                 
+    networks: [monitoring]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 384M
 volumes:
   donnees-postgres:
+  donnees-prometheus:
 
 networks:
   app:
+  monitoring:
