@@ -16,3 +16,27 @@ scrape_configs:
         labels:
           service: api-commandes
           env: lab
+
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          service: node-exporter
+          env: lab
+
+  - job_name: blackbox-api
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: ["http://api-commandes:8000/sante"]
+        labels:
+          service: api-commandes
+          env: lab
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
