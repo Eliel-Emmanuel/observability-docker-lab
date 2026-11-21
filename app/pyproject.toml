@@ -1,0 +1,15 @@
+[project]
+name = "api-commandes"
+version = "1.0.0"
+description = "API de démonstration du labo observability-docker-lab"
+requires-python = ">=3.13"
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
