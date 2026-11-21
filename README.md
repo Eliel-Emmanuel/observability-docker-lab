@@ -1,6 +1,6 @@
 # observability-docker-lab
 
-![CI](https://github.com/<ton-compte>/observability-docker-lab/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Eliel-Emmanuel/observability-docker-lab/actions/workflows/ci.yml/badge.svg)
 
 Chaîne de supervision complète en Docker Compose — métriques (Prometheus), journaux (Loki, Grafana Alloy), tableaux de bord (Grafana) et alertes (Alertmanager) — autour d'une API de démonstration, avec des pannes provoquées à la demande pour prouver chaque alerte.
 
