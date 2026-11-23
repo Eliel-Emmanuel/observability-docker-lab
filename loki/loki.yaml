@@ -1,0 +1,39 @@
+# Loki en mode monolithique : un seul processus, stockage sur disque local.
+auth_enabled: false            # un seul « locataire » : pas d'authentification interne
+
+server:
+  http_listen_port: 3100
+  log_level: warn              # Loki ne journalise que ses avertissements
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki           # tout est rangé sous /loki (volume nommé)
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1        # une seule copie : pas de haute disponibilité en labo
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2026-01-01         # date d'entrée en vigueur de ce format de stockage
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h            # un index par jour
+
+limits_config:
+  retention_period: 168h       # 7 jours (EF-12)
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true      # c'est le compacteur qui supprime les journaux expirés
+  delete_request_store: filesystem
+
+analytics:
+  reporting_enabled: false     # pas de statistiques d'usage envoyées à Grafana Labs

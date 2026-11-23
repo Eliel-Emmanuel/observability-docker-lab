@@ -168,9 +168,47 @@ services:
         limits:
           memory: 32M
 
+  loki:
+    image: grafana/loki:${LOKI_VERSION}
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - donnees-loki:/loki
+    networks: [monitoring]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  alloy:
+    image: grafana/alloy:${ALLOY_VERSION}
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - donnees-alloy:/var/lib/alloy/data
+    networks: [monitoring]
+    depends_on: [loki]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
 volumes:
   donnees-postgres:
   donnees-prometheus:
+  donnees-loki:
+  donnees-alloy:
 
 networks:
   app:

@@ -1,0 +1,66 @@
+// Grafana Alloy : lit les journaux des conteneurs du labo et les envoie à Loki.
+
+// 1. Trouver les conteneurs du projet Compose « obslab »
+discovery.docker "conteneurs" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+
+  filter {
+    name   = "label"
+    values = ["com.docker.compose.project=obslab"]
+  }
+}
+
+// 2. Transformer les métadonnées Docker en étiquettes lisibles
+discovery.relabel "conteneurs" {
+  targets = []
+
+  // nom du service Compose : postgres, api-commandes...
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  // nom du conteneur, sans le « / » que Docker ajoute devant
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+// 3. Lire les journaux de ces conteneurs
+loki.source.docker "conteneurs" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.conteneurs.targets
+  relabel_rules = discovery.relabel.conteneurs.rules
+  forward_to    = [loki.process.journaux.receiver]
+}
+
+// 4. Enrichir : étiquette env, et niveau extrait du JSON de l'API (EF-11)
+loki.process "journaux" {
+  stage.static_labels {
+    values = { env = "lab" }
+  }
+
+  stage.match {
+    selector = "{service=\"api-commandes\"}"
+
+    stage.json {
+      expressions = { niveau = "niveau" }
+    }
+
+    stage.labels {
+      values = { niveau = "" }
+    }
+  }
+
+  forward_to = [loki.write.loki.receiver]
+}
+
+// 5. Envoyer à Loki
+loki.write "loki" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

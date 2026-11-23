@@ -54,3 +54,17 @@ scrape_configs:
         labels:
           service: postgres-exporter
           env: lab
+
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+        labels:
+          service: loki
+          env: lab
+
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+        labels:
+          service: alloy
+          env: lab
