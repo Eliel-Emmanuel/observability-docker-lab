@@ -64,3 +64,11 @@ jobs:
           docker run --rm -v "$PWD/prometheus:/etc/prometheus:ro"
           --entrypoint promtool prom/prometheus:v3.13.5
           check config /etc/prometheus/prometheus.yml
+  alloy:
+    name: Alloy (validation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: >
+          docker run --rm -v "$PWD/alloy:/etc/alloy:ro"
+          grafana/alloy:v1.22.0 fmt /etc/alloy/config.alloy

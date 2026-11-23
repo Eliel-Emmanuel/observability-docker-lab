@@ -1,0 +1,12 @@
+# Indique à Grafana où trouver les tableaux de bord versionnés dans le dépôt.
+apiVersion: 1
+
+providers:
+  - name: labo
+    folder: Labo                 # dossier affiché dans Grafana
+    type: file
+    disableDeletion: true        # impossible de les supprimer depuis l'interface
+    allowUiUpdates: false        # la source de vérité est le fichier JSON, pas l'interface
+    updateIntervalSeconds: 30    # Grafana relit le dossier toutes les 30 s
+    options:
+      path: /etc/grafana/dashboards

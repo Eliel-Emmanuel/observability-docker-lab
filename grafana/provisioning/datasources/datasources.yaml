@@ -1,0 +1,24 @@
+# Sources de données créées automatiquement au démarrage de Grafana (EF-13).
+# Les uid fixes permettent aux tableaux de bord de les référencer sans ambiguïté.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy                # c'est le serveur Grafana qui interroge Prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false              # modifiable uniquement par ce fichier
+    jsonData:
+      timeInterval: 15s          # = scrape_interval de Prometheus
+      httpMethod: POST
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000

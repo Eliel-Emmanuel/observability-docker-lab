@@ -68,3 +68,10 @@ scrape_configs:
         labels:
           service: alloy
           env: lab
+
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+        labels:
+          service: grafana
+          env: lab
