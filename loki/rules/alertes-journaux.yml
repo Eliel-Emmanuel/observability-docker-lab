@@ -1,0 +1,17 @@
+# Alerte sur les journaux, évaluée par le ruler de Loki (EF-18).
+# Elle complète les métriques : elle détecte des erreurs applicatives
+# même quand elles ne produisent pas de réponse 5xx.
+
+groups:
+  - name: journaux-api
+    rules:
+      - alert: ErreursApplicatives
+        expr: |
+          sum by (service) (count_over_time({service="api-commandes", niveau="ERROR"}[5m])) > 20
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Plus de 20 journaux d'erreur en 5 minutes pour {{ $labels.service }}"
+          description: "{{ $value }} lignes de niveau ERROR sur les 5 dernières minutes."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/ErreursApplicatives.md"

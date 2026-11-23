@@ -1,0 +1,127 @@
+# Règles d'alerte du labo (EF-17).
+# Chaque alerte : une gravité (critical / warning), un résumé, une description
+# et un lien vers sa procédure de résolution (runbook, EF-22).
+#
+# Principe : on alerte sur des SYMPTÔMES vécus par les utilisateurs
+# (erreurs, lenteur, indisponibilité), pas sur chaque cause possible.
+
+groups:
+  - name: api-commandes
+    rules:
+      - alert: ApiIndisponible
+        expr: probe_success{service="api-commandes"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "L'API api-commandes ne répond plus"
+          description: "La sonde blackbox échoue sur {{ $labels.instance }} depuis plus d'une minute."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/ApiIndisponible.md"
+
+      - alert: TauxErreursEleve
+        expr: sli:ratio_erreurs:rate5m > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Plus de 5 % d'erreurs 5xx sur l'API"
+          description: "Taux d'erreurs 5xx sur 5 minutes : {{ $value | humanizePercentage }}."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/TauxErreursEleve.md"
+
+      - alert: LatenceElevee
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{service="api-commandes", route!~"/|/sante|/chaos.*"}[5m]))) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: api-commandes
+        annotations:
+          summary: "Latence p95 de l'API supérieure à 500 ms"
+          description: "95 % des requêtes sont servies en moins de {{ $value | humanizeDuration }}, au-delà du seuil de 500 ms."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/LatenceElevee.md"
+
+      # Consommation rapide du budget d'erreur : à ce rythme (14 fois la normale),
+      # le budget de 7 jours serait épuisé en 12 heures.
+      # Deux fenêtres : 1 h confirme que c'est durable, 5 min que c'est toujours en cours.
+      - alert: BudgetErreurRapide
+        expr: |
+          sli:ratio_erreurs:rate1h > (14 * (1 - 0.995))
+          and
+          sli:ratio_erreurs:rate5m > (14 * (1 - 0.995))
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Le budget d'erreur de l'API se consume 14 fois trop vite"
+          description: "À ce rythme, le budget d'erreur de 7 jours sera épuisé en moins de 12 heures."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/BudgetErreurRapide.md"
+
+  - name: infrastructure
+    rules:
+      - alert: CibleInjoignable
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus ne joint plus {{ $labels.job }}"
+          description: "La cible {{ $labels.instance }} (job {{ $labels.job }}) ne répond plus depuis 2 minutes."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/CibleInjoignable.md"
+
+      - alert: PostgresIndisponible
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL ne répond plus"
+          description: "postgres-exporter n'arrive plus à se connecter à la base depuis une minute."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/PostgresIndisponible.md"
+
+      - alert: ConteneurRedemarre
+        expr: changes(container_start_time_seconds{name=~"obslab.*"}[15m]) > 2
+        labels:
+          severity: warning
+        annotations:
+          summary: "Le conteneur {{ $labels.name }} redémarre en boucle"
+          description: "{{ $labels.name }} a redémarré {{ $value }} fois en 15 minutes."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/ConteneurRedemarre.md"
+
+      # Le filtre « > 0 » écarte les conteneurs sans limite de mémoire
+      # (la division par zéro donnerait l'infini et une fausse alerte).
+      - alert: MemoireConteneurProcheLimite
+        expr: |
+          container_memory_working_set_bytes{name=~"obslab.*"}
+          / (container_spec_memory_limit_bytes{name=~"obslab.*"} > 0) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.name }} utilise plus de 90 % de sa limite de mémoire"
+          description: "{{ $labels.name }} est à {{ $value | humanizePercentage }} de sa limite. Au-delà de 100 %, Docker le tue."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/MemoireConteneurProcheLimite.md"
+
+      - alert: DisqueHotePresquePlein
+        expr: |
+          node_filesystem_avail_bytes{mountpoint="/", fstype!~"tmpfs|overlay"}
+          / node_filesystem_size_bytes{mountpoint="/", fstype!~"tmpfs|overlay"} < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Moins de 15 % d'espace libre sur le disque de l'hôte"
+          description: "Espace libre restant : {{ $value | humanizePercentage }}."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/DisqueHotePresquePlein.md"
+
+  - name: chaine-alerte
+    rules:
+      # Toujours active, par construction. Si elle cesse d'arriver,
+      # c'est que la chaîne d'alerte elle-même est en panne (EF-20).
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "Alerte permanente : la chaîne d'alerte fonctionne"
+          description: "Cette alerte est toujours active. Son absence signale une panne de Prometheus ou d'Alertmanager."
+          runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/Watchdog.md"

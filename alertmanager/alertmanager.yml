@@ -1,0 +1,50 @@
+# Alertmanager : regroupe, route et envoie les alertes (EF-19 à EF-21).
+
+global:
+  # Mailpit : boîte mail locale, sans compte externe ni mot de passe réel.
+  smtp_smarthost: mailpit:1025
+  smtp_from: alertmanager@labo.local
+  smtp_require_tls: false
+  resolve_timeout: 5m
+
+route:
+  receiver: equipe                  # destinataire par défaut
+  group_by: [alertname, service]    # une notification par alerte et par service
+  group_wait: 30s                   # attend 30 s pour regrouper les alertes simultanées
+  group_interval: 5m                # délai avant d'envoyer les nouveautés d'un groupe
+  repeat_interval: 4h               # rappel toutes les 4 h tant que l'alerte dure
+
+  routes:
+    # La Watchdog prouve que la chaîne fonctionne : boîte dédiée, rappel espacé.
+    - matchers: [alertname="Watchdog"]
+      receiver: watchdog
+      repeat_interval: 12h
+
+    # Les alertes critiques vont à l'astreinte.
+    - matchers: [severity="critical"]
+      receiver: astreinte
+
+    # Le reste (warning) va à l'équipe, via le destinataire par défaut.
+
+receivers:
+  - name: astreinte
+    email_configs:
+      - to: astreinte@labo.local
+        send_resolved: true         # envoie aussi un message à la résolution
+
+  - name: equipe
+    email_configs:
+      - to: equipe@labo.local
+        send_resolved: true
+
+  - name: watchdog
+    email_configs:
+      - to: watchdog@labo.local
+        send_resolved: true
+
+# Inhibition (EF-21) : si l'API est arrêtée, les alertes sur ses erreurs,
+# sa latence et son budget n'apportent rien de plus. On ne les envoie pas.
+inhibit_rules:
+  - source_matchers: [alertname="ApiIndisponible"]
+    target_matchers: [alertname=~"TauxErreursEleve|LatenceElevee|BudgetErreurRapide"]
+    equal: [service]

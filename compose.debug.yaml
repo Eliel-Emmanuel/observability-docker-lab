@@ -8,3 +8,6 @@ services:
   alloy:
     ports:
       - "127.0.0.1:12345:12345"
+  alertmanager:
+    ports:
+      - "127.0.0.1:9093:9093"

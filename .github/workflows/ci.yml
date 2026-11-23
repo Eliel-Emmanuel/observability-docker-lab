@@ -66,11 +66,11 @@ jobs:
           docker run --rm -v "$PWD/prometheus:/etc/prometheus:ro"
           --entrypoint promtool prom/prometheus:v3.13.5
           check config /etc/prometheus/prometheus.yml
-      - name: Tests unitaires des règles SLO
+      - name: Tests unitaires des règles (SLO et alertes)
         run: >
           docker run --rm -v "$PWD/prometheus:/p:ro" -w /p/tests
           --entrypoint promtool prom/prometheus:v3.13.5
-          test rules slo-test.yml
+          test rules slo-test.yml alertes-test.yml
 
   alloy:
     name: Alloy (validation)
@@ -80,3 +80,13 @@ jobs:
       - run: >
           docker run --rm -v "$PWD/alloy:/etc/alloy:ro"
           grafana/alloy:v1.22.0 fmt /etc/alloy/config.alloy
+
+  alertmanager:
+    name: Alertmanager (amtool)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: >
+          docker run --rm -v "$PWD/alertmanager:/etc/alertmanager:ro"
+          --entrypoint amtool prom/alertmanager:v0.35.0
+          check-config /etc/alertmanager/alertmanager.yml

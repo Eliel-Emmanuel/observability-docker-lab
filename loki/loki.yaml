@@ -37,3 +37,18 @@ compactor:
 
 analytics:
   reporting_enabled: false     # pas de statistiques d'usage envoyées à Grafana Labs
+
+# Ruler : évalue des règles d'alerte écrites en LogQL et les envoie
+# à Alertmanager, comme Prometheus (EF-18).
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /etc/loki/rules     # règles montées depuis le dépôt (lecture seule)
+  rule_path: /loki/ruler-temp        # copie de travail du ruler
+  alertmanager_url: http://alertmanager:9093
+  enable_alertmanager_v2: true
+  enable_api: true
+  ring:
+    kvstore:
+      store: inmemory

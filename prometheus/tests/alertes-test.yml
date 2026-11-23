@@ -1,0 +1,166 @@
+# Tests unitaires des alertes (EF-25) : pour chaque alerte, un scénario
+# qui doit la déclencher. Lancer depuis prometheus/tests :
+#   promtool test rules alertes-test.yml
+rule_files:
+  - ../rules/slo.yml
+  - ../rules/alertes.yml
+
+evaluation_interval: 30s
+
+tests:
+  # 1. 30 % d'erreurs pendant 20 minutes : erreurs et budget en alerte.
+  - name: Panne avec 30 % d'erreurs
+    interval: 30s
+    input_series:
+      - series: 'http_requests_total{service="api-commandes", route="/commandes", methode="GET", code="200"}'
+        values: '0+35x40'
+      - series: 'http_requests_total{service="api-commandes", route="/commandes", methode="GET", code="500"}'
+        values: '0+15x40'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: TauxErreursEleve
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: TauxErreursEleve
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              service: api-commandes
+            exp_annotations:
+              summary: "Plus de 5 % d'erreurs 5xx sur l'API"
+              description: "Taux d'erreurs 5xx sur 5 minutes : 30%."
+              runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/TauxErreursEleve.md"
+      - eval_time: 15m
+        alertname: BudgetErreurRapide
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              service: api-commandes
+            exp_annotations:
+              summary: "Le budget d'erreur de l'API se consume 14 fois trop vite"
+              description: "À ce rythme, le budget d'erreur de 7 jours sera épuisé en moins de 12 heures."
+              runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/BudgetErreurRapide.md"
+
+  # 2. Trafic sain : aucune alerte sur les erreurs.
+  - name: Trafic sans erreur
+    interval: 30s
+    input_series:
+      - series: 'http_requests_total{service="api-commandes", route="/commandes", methode="GET", code="200"}'
+        values: '0+50x40'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: TauxErreursEleve
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: BudgetErreurRapide
+        exp_alerts: []
+
+  # 3. API arrêtée : sonde en échec et cible injoignable.
+  - name: API arrêtée
+    interval: 30s
+    input_series:
+      - series: 'probe_success{job="blackbox-api", instance="http://api-commandes:8000/sante", service="api-commandes", env="lab"}'
+        values: '1 1 0x10'
+      - series: 'up{job="api-commandes", instance="api-commandes:8000", service="api-commandes", env="lab"}'
+        values: '1 1 0x10'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ApiIndisponible
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: ApiIndisponible
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-api
+              instance: http://api-commandes:8000/sante
+              service: api-commandes
+              env: lab
+            exp_annotations:
+              summary: "L'API api-commandes ne répond plus"
+              description: "La sonde blackbox échoue sur http://api-commandes:8000/sante depuis plus d'une minute."
+              runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/ApiIndisponible.md"
+      - eval_time: 4m
+        alertname: CibleInjoignable
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: api-commandes
+              instance: api-commandes:8000
+              service: api-commandes
+              env: lab
+            exp_annotations:
+              summary: "Prometheus ne joint plus api-commandes"
+              description: "La cible api-commandes:8000 (job api-commandes) ne répond plus depuis 2 minutes."
+              runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/CibleInjoignable.md"
+
+  # 4. Base de données arrêtée.
+  - name: PostgreSQL arrêté
+    interval: 30s
+    input_series:
+      - series: 'pg_up{job="postgres", instance="postgres-exporter:9187", service="postgres", env="lab"}'
+        values: '1 0x6'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: PostgresIndisponible
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: postgres
+              instance: postgres-exporter:9187
+              service: postgres
+              env: lab
+            exp_annotations:
+              summary: "PostgreSQL ne répond plus"
+              description: "postgres-exporter n'arrive plus à se connecter à la base depuis une minute."
+              runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/PostgresIndisponible.md"
+
+  # 5. Conteneur proche de sa limite de mémoire, puis redémarrages en boucle.
+  - name: Fuite mémoire
+    interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{name="obslab-api-commandes-1"}'
+        values: '125829120x10'
+      - series: 'container_spec_memory_limit_bytes{name="obslab-api-commandes-1"}'
+        values: '134217728x10'
+      - series: 'container_spec_memory_limit_bytes{name="obslab-sans-limite-1"}'
+        values: '0x10'
+      - series: 'container_memory_working_set_bytes{name="obslab-sans-limite-1"}'
+        values: '104857600x10'
+      - series: 'container_start_time_seconds{name="obslab-api-commandes-1"}'
+        values: '100 100 200 300 400 400 400'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: MemoireConteneurProcheLimite
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: obslab-api-commandes-1
+            exp_annotations:
+              summary: "obslab-api-commandes-1 utilise plus de 90 % de sa limite de mémoire"
+              description: "obslab-api-commandes-1 est à 93.75% de sa limite. Au-delà de 100 %, Docker le tue."
+              runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/MemoireConteneurProcheLimite.md"
+      - eval_time: 5m
+        alertname: ConteneurRedemarre
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: obslab-api-commandes-1
+            exp_annotations:
+              summary: "Le conteneur obslab-api-commandes-1 redémarre en boucle"
+              description: "obslab-api-commandes-1 a redémarré 3 fois en 15 minutes."
+              runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/ConteneurRedemarre.md"
+
+  # 6. L'alerte permanente est toujours là.
+  - name: Watchdog
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels:
+              severity: none
+            exp_annotations:
+              summary: "Alerte permanente : la chaîne d'alerte fonctionne"
+              description: "Cette alerte est toujours active. Son absence signale une panne de Prometheus ou d'Alertmanager."
+              runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/Watchdog.md"

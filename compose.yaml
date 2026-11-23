@@ -176,6 +176,7 @@ services:
     volumes:
       - ./loki/loki.yaml:/etc/loki/loki.yaml:ro
       - donnees-loki:/loki
+      - ./loki/rules:/etc/loki/rules/fake:ro
     networks: [monitoring]
     read_only: true
     tmpfs: [/tmp]
@@ -237,12 +238,51 @@ services:
         limits:
           memory: 384M
 
+  alertmanager:
+    image: prom/alertmanager:${ALERTMANAGER_VERSION}
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - donnees-alertmanager:/alertmanager
+    networks: [monitoring]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  mailpit:
+    image: axllent/mailpit:${MAILPIT_VERSION}
+    ports:
+      - "127.0.0.1:8025:8025"
+    networks: [monitoring]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
 volumes:
   donnees-postgres:
   donnees-prometheus:
   donnees-loki:
   donnees-alloy:
   donnees-grafana:
+  donnees-alertmanager:
 
 networks:
   app:

@@ -22,3 +22,14 @@ datasources:
     editable: false
     jsonData:
       maxLines: 1000
+
+  # Alertmanager : affiche les alertes en cours et les silences dans Grafana.
+  - name: Alertmanager
+    uid: alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    editable: false
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: false
