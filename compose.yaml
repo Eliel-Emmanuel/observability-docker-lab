@@ -50,6 +50,10 @@ services:
       resources:
         limits:
           memory: 128M
+    # Mémoire + swap = 128M : pas de swap pour l'API. Sans cette ligne, le noyau
+    # envoie l'excédent dans le swap de WSL2, la mémoire mesurée plafonne sous le
+    # seuil d'alerte et MemoireConteneurProcheLimite ne se déclenche jamais.
+    memswap_limit: 128M
 
   prometheus:
     image: prom/prometheus:${PROMETHEUS_VERSION}

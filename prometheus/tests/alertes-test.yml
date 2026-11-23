@@ -136,8 +136,9 @@ tests:
           - exp_labels:
               severity: warning
               name: obslab-api-commandes-1
+              service: api-commandes
             exp_annotations:
-              summary: "obslab-api-commandes-1 utilise plus de 90 % de sa limite de mémoire"
+              summary: "obslab-api-commandes-1 utilise plus de 85 % de sa limite de mémoire"
               description: "obslab-api-commandes-1 est à 93.75% de sa limite. Au-delà de 100 %, Docker le tue."
               runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/MemoireConteneurProcheLimite.md"
       - eval_time: 5m
@@ -146,6 +147,7 @@ tests:
           - exp_labels:
               severity: warning
               name: obslab-api-commandes-1
+              service: api-commandes
             exp_annotations:
               summary: "Le conteneur obslab-api-commandes-1 redémarre en boucle"
               description: "obslab-api-commandes-1 a redémarré 3 fois en 15 minutes."
