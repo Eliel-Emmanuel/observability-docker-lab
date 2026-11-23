@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# Les actions tierces sont épinglées par leur empreinte de commit (SHA), pas par
+# une étiquette : une étiquette peut être déplacée vers du code malveillant,
+# comme lors de la compromission de trivy-action en mars 2026.
+# Le commentaire indique la version correspondante.
+
 jobs:
   application:
     name: Application (lint et tests)
@@ -16,8 +21,8 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.13"
           cache: pip
@@ -31,36 +36,65 @@ jobs:
     name: Dockerfile (hadolint et build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: hadolint/hadolint-action@v3.1.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf  # v3.1.0
         with:
           dockerfile: app/Dockerfile
       - run: docker build -t api-commandes:ci app/
+
+  trivy:
+    name: Image de l'API (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - run: docker build -t api-commandes:ci app/
+      - name: Bloquer les vulnérabilités critiques corrigeables (ES-06)
+        run: >
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro
+          aquasec/trivy:0.76.2 image --no-progress
+          --severity CRITICAL --ignore-unfixed --exit-code 1
+          api-commandes:ci
+      - name: Rapport des vulnérabilités hautes et critiques (informatif)
+        run: >
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro
+          aquasec/trivy:0.76.2 image --no-progress
+          --severity HIGH,CRITICAL
+          api-commandes:ci
 
   secrets:
     name: Secrets (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
         with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0             # tout l'historique : un secret supprimé reste dans Git
+      - run: >
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo:ro"
+          zricethezav/gitleaks:v8.30.1 git /repo --redact --verbose
+
+  style:
+    name: Style (yamllint et shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - run: pip install yamllint==1.38.0
+      - run: yamllint .
+      - run: shellcheck tests/*.sh postgres/init/*.sh
 
   compose:
     name: Compose (syntaxe)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - run: cp .env.example .env
       - run: docker compose config -q
+      - run: docker compose -f compose.yaml -f compose.debug.yaml config -q
 
   prometheus:
     name: Prometheus (promtool)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - name: Vérifier la configuration et les règles
         run: >
           docker run --rm -v "$PWD/prometheus:/etc/prometheus:ro"
@@ -76,7 +110,7 @@ jobs:
     name: Alloy (validation)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - run: >
           docker run --rm -v "$PWD/alloy:/etc/alloy:ro"
           grafana/alloy:v1.22.0 fmt /etc/alloy/config.alloy
@@ -85,8 +119,31 @@ jobs:
     name: Alertmanager (amtool)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - run: >
           docker run --rm -v "$PWD/alertmanager:/etc/alertmanager:ro"
           --entrypoint amtool prom/alertmanager:v0.35.0
           check-config /etc/alertmanager/alertmanager.yml
+
+  e2e:
+    name: Test de bout en bout
+    runs-on: ubuntu-latest
+    # Ne démarre la pile complète que si les vérifications rapides sont passées.
+    needs: [application, compose, prometheus, alloy, alertmanager]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - run: cp .env.example .env
+      - name: Démarrer la pile
+        run: >
+          docker compose -f compose.yaml -f compose.debug.yaml
+          up -d --build --wait --wait-timeout 300
+      - name: Vérifier la pile de bout en bout
+        run: bash tests/e2e.sh
+      - name: État et journaux en cas d'échec
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --tail=40
+      - name: Arrêter la pile
+        if: always()
+        run: docker compose -f compose.yaml -f compose.debug.yaml down -v

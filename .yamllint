@@ -1,0 +1,13 @@
+# Règles de style YAML vérifiées en CI (yamllint).
+extends: default
+
+rules:
+  line-length:
+    max: 160
+  document-start: disable          # pas de « --- » obligatoire en tête de fichier
+  truthy:
+    check-keys: false              # « on: » de GitHub Actions n'est pas un booléen
+  comments:
+    min-spaces-from-content: 1
+  indentation:
+    indent-sequences: consistent

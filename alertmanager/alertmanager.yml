@@ -23,8 +23,7 @@ route:
     # Les alertes critiques vont à l'astreinte.
     - matchers: [severity="critical"]
       receiver: astreinte
-
-    # Le reste (warning) va à l'équipe, via le destinataire par défaut.
+      # Le reste (warning) va à l'équipe, via le destinataire par défaut.
 
 receivers:
   - name: astreinte
