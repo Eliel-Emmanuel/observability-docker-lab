@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help env up down restart ps logs build test-app clean up-debug down-debug
+.PHONY: help env up down restart ps logs build test-app clean up-debug down-debug ps-debug recreate
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -40,3 +40,9 @@ up-debug: ## Démarre la pile avec les ports de débogage
 
 down-debug: ## Arrête la pile démarrée en mode débogage
 	$(COMPOSE) -f compose.yaml -f compose.debug.yaml down
+
+ps-debug: ## État des services (mode débogage)
+	$(COMPOSE) -f compose.yaml -f compose.debug.yaml ps
+
+recreate: ## Recrée un service en mode débogage (make recreate s=prometheus)
+	$(COMPOSE) -f compose.yaml -f compose.debug.yaml up -d $(s)

@@ -16,7 +16,7 @@
   },
   "refresh": "30s",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "templating": {
     "list": []
   },
@@ -26,6 +26,365 @@
   "links": [],
   "panels": [
     {
+      "id": 15,
+      "type": "row",
+      "title": "Objectifs de service (SLO, 7 jours)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Disponibilité (objectif 99,5 %)",
+      "description": "Part des requêtes métier sans erreur 5xx sur 7 jours, mesurée sur les requêtes réelles et non sur la sonde.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sli:disponibilite:ratio_7d",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.995
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Budget d'erreur restant",
+      "description": "100 % = budget intact, 0 % = épuisé, négatif = objectif de disponibilité manqué.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:budget_disponibilite_restant:ratio_7d",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.25
+              },
+              {
+                "color": "green",
+                "value": 0.5
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 18,
+      "type": "stat",
+      "title": "Latence < 300 ms (objectif 95 %)",
+      "description": "Part des requêtes métier servies en moins de 300 ms sur 7 jours.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sli:latence_ok:ratio_7d",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.95
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 19,
+      "type": "stat",
+      "title": "Budget de latence restant",
+      "description": "Part du budget de requêtes lentes (5 %) encore disponible.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:budget_latence_restant:ratio_7d",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.25
+              },
+              {
+                "color": "green",
+                "value": 0.5
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Vitesse de consommation du budget d'erreur",
+      "description": "1 = le budget serait épuisé exactement en fin de période. Au-dessus de 14, il serait épuisé en moins de 12 heures : c'est le seuil de l'alerte BudgetErreurRapide (étape 7).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sli:ratio_erreurs:rate5m / (1 - 0.995)",
+          "legendFormat": "sur 5 min",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sli:ratio_erreurs:rate1h / (1 - 0.995)",
+          "legendFormat": "sur 1 h",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 14
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
       "id": 1,
       "type": "row",
       "title": "Vue d'ensemble",
@@ -34,7 +393,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 10
       },
       "panels": []
     },
@@ -51,7 +410,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 1
+        "y": 11
       },
       "targets": [
         {
@@ -120,7 +479,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 1
+        "y": 11
       },
       "targets": [
         {
@@ -180,7 +539,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 1
+        "y": 11
       },
       "targets": [
         {
@@ -249,7 +608,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 1
+        "y": 11
       },
       "targets": [
         {
@@ -317,7 +676,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 1
+        "y": 11
       },
       "targets": [
         {
@@ -378,7 +737,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 1
+        "y": 11
       },
       "targets": [
         {
@@ -438,7 +797,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 15
       },
       "panels": []
     },
@@ -455,7 +814,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 6
+        "y": 16
       },
       "targets": [
         {
@@ -501,7 +860,7 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "Erreurs 5xx",
+      "title": "Taux d'erreurs 5xx",
       "description": "Sélectionner un pic à la souris : le panneau des journaux, en bas, affiche les erreurs de la même période (EF-15).",
       "datasource": {
         "type": "prometheus",
@@ -511,7 +870,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 6
+        "y": 16
       },
       "targets": [
         {
@@ -567,7 +926,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 24
       },
       "targets": [
         {
@@ -643,7 +1002,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 24
       },
       "targets": [
         {
@@ -695,7 +1054,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 32
       },
       "panels": []
     },
@@ -711,7 +1070,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 33
       },
       "targets": [
         {

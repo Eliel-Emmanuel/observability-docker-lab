@@ -1,0 +1,54 @@
+rule_files:
+  - ../rules/slo.yml
+evaluation_interval: 30s
+tests:
+  # 100 requêtes/min dont 1 erreur/min (1 %) pendant 2 h, toutes < 300 ms sauf 3 %.
+  - interval: 1m
+    input_series:
+      - series: 'http_requests_total{service="api-commandes", route="/commandes", code="200", methode="GET"}'
+        values: '0+99x120'
+      - series: 'http_requests_total{service="api-commandes", route="/commandes", code="500", methode="GET"}'
+        values: '0+1x120'
+      - series: 'http_requests_total{service="api-commandes", route="/sante", code="503", methode="GET"}'
+        values: '0+50x120'
+      - series: 'http_request_duration_seconds_bucket{service="api-commandes", route="/commandes", methode="GET", le="0.3"}'
+        values: '0+97x120'
+      - series: 'http_request_duration_seconds_count{service="api-commandes", route="/commandes", methode="GET"}'
+        values: '0+100x120'
+    promql_expr_test:
+      - expr: round(sli:ratio_erreurs:rate5m, 0.0001)
+        eval_time: 1h
+        exp_samples:
+          - labels: '{service="api-commandes"}'
+            value: 0.01
+      - expr: round(sli:disponibilite:ratio_7d, 0.0001)
+        eval_time: 2h
+        exp_samples:
+          - labels: '{service="api-commandes"}'
+            value: 0.99
+      - expr: round(slo:budget_disponibilite_restant:ratio_7d, 0.0001)
+        eval_time: 2h
+        exp_samples:
+          - labels: '{service="api-commandes"}'
+            value: -1
+      - expr: round(sli:latence_ok:ratio_7d, 0.0001)
+        eval_time: 2h
+        exp_samples:
+          - labels: '{service="api-commandes"}'
+            value: 0.97
+  # Aucune erreur : le ratio doit valoir 0, pas être vide.
+  - interval: 1m
+    input_series:
+      - series: 'http_requests_total{service="api-commandes", route="/commandes", code="200", methode="GET"}'
+        values: '0+100x120'
+    promql_expr_test:
+      - expr: sli:ratio_erreurs:rate5m
+        eval_time: 1h
+        exp_samples:
+          - labels: 'sli:ratio_erreurs:rate5m{service="api-commandes"}'
+            value: 0
+      - expr: slo:budget_disponibilite_restant:ratio_7d
+        eval_time: 2h
+        exp_samples:
+          - labels: 'slo:budget_disponibilite_restant:ratio_7d{service="api-commandes"}'
+            value: 1

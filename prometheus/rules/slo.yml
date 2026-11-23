@@ -1,0 +1,79 @@
+# Indicateurs (SLI) et objectifs (SLO) de l'API api-commandes (EF-08, EF-16).
+#
+# Convention de nommage des règles d'enregistrement : niveau:métrique:opération
+#   sli:...  indicateur mesuré        slo:...  calcul lié à un objectif
+#
+# Périmètre : requêtes métier uniquement (hors /, /sante et /chaos).
+# Objectifs :  disponibilité 99,5 %  |  latence : 95 % des requêtes < 300 ms
+# Fenêtre    : 7 jours dans le labo (rétention de Prometheus), 30 jours en production.
+
+groups:
+  - name: api-commandes-sli
+    interval: 30s
+    rules:
+      # --- Débit et erreurs sur 5 minutes (tableaux de bord, alertes rapides) ---
+      - record: sli:requetes:rate5m
+        expr: sum(rate(http_requests_total{service="api-commandes", route!~"/|/sante|/chaos.*"}[5m]))
+        labels:
+          service: api-commandes
+
+      # « or vector(0) » : sans aucune erreur, la série 5xx n'existe pas.
+      # Sans ce repli, tout le calcul serait vide au lieu de valoir 0.
+      - record: sli:erreurs:rate5m
+        expr: |
+          sum(rate(http_requests_total{service="api-commandes", route!~"/|/sante|/chaos.*", code=~"5.."}[5m]))
+          or vector(0)
+        labels:
+          service: api-commandes
+
+      - record: sli:ratio_erreurs:rate5m
+        expr: sli:erreurs:rate5m / sli:requetes:rate5m
+
+      # --- Même calcul sur 1 heure (alerte de consommation du budget, étape 7) ---
+      - record: sli:requetes:rate1h
+        expr: sum(rate(http_requests_total{service="api-commandes", route!~"/|/sante|/chaos.*"}[1h]))
+        labels:
+          service: api-commandes
+
+      - record: sli:erreurs:rate1h
+        expr: |
+          sum(rate(http_requests_total{service="api-commandes", route!~"/|/sante|/chaos.*", code=~"5.."}[1h]))
+          or vector(0)
+        labels:
+          service: api-commandes
+
+      - record: sli:ratio_erreurs:rate1h
+        expr: sli:erreurs:rate1h / sli:requetes:rate1h
+
+  - name: api-commandes-slo
+    # Calculs sur 7 jours : plus coûteux, donc évalués moins souvent.
+    interval: 5m
+    rules:
+      # SLI de disponibilité : part des requêtes métier sans erreur 5xx.
+      - record: sli:disponibilite:ratio_7d
+        expr: |
+          1 - (
+            (sum(increase(http_requests_total{service="api-commandes", route!~"/|/sante|/chaos.*", code=~"5.."}[7d])) or vector(0))
+            /
+            sum(increase(http_requests_total{service="api-commandes", route!~"/|/sante|/chaos.*"}[7d]))
+          )
+        labels:
+          service: api-commandes
+
+      # Budget d'erreur restant : 1 = intact, 0 = épuisé, négatif = objectif manqué.
+      # Le budget est la part d'échecs tolérée : 1 - 0,995 = 0,5 %.
+      - record: slo:budget_disponibilite_restant:ratio_7d
+        expr: 1 - (1 - sli:disponibilite:ratio_7d) / (1 - 0.995)
+
+      # SLI de latence : part des requêtes servies en moins de 300 ms
+      # (le seuil 0,3 s est une des tranches de l'histogramme de l'API).
+      - record: sli:latence_ok:ratio_7d
+        expr: |
+          sum(increase(http_request_duration_seconds_bucket{service="api-commandes", route!~"/|/sante|/chaos.*", le="0.3"}[7d]))
+          /
+          sum(increase(http_request_duration_seconds_count{service="api-commandes", route!~"/|/sante|/chaos.*"}[7d]))
+        labels:
+          service: api-commandes
+
+      - record: slo:budget_latence_restant:ratio_7d
+        expr: 1 - (1 - sli:latence_ok:ratio_7d) / (1 - 0.95)
