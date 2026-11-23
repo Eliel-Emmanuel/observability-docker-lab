@@ -112,6 +112,7 @@ class EtatChaos:
         self.taux_erreurs = 0.0
         self.latence_ms = 0
         self.fuite_mo_par_seconde = 0
+        self.fuite_max_mo: int | None = None
         self._fuite: list[bytes] = []
         self._verrou = threading.Lock()
         self._arret_fuite = threading.Event()
@@ -122,16 +123,30 @@ class EtatChaos:
         CHAOS.labels("latence_ms").set(self.latence_ms)
         CHAOS.labels("memoire_mo_par_seconde").set(self.fuite_mo_par_seconde)
 
-    def demarrer_fuite(self, mo_par_seconde: int) -> None:
+    def memoire_retenue_mo(self) -> int:
+        with self._verrou:
+            return sum(len(bloc) for bloc in self._fuite) // (1024 * 1024)
+
+    def demarrer_fuite(self, mo_par_seconde: int, max_mo: int | None = None) -> None:
+        """Retient mo_par_seconde Mo de plus chaque seconde.
+
+        Sans max_mo, la fuite continue jusqu'à ce que Docker tue le conteneur.
+        Avec max_mo, elle se stabilise à ce plafond : le conteneur reste
+        durablement proche de sa limite, sans être tué.
+        """
         self.arreter_fuite()
         self.fuite_mo_par_seconde = mo_par_seconde
+        self.fuite_max_mo = max_mo
         self._arret_fuite.clear()
 
         def fuir() -> None:
             while not self._arret_fuite.wait(1):
+                retenu = self.memoire_retenue_mo()
+                if max_mo is not None and retenu + mo_par_seconde > max_mo:
+                    continue  # plafond atteint : on garde la mémoire sans en ajouter
                 with self._verrou:
                     self._fuite.append(os.urandom(mo_par_seconde * 1024 * 1024))
-                log.warning("Fuite mémoire simulée : %s Mo retenus", len(self._fuite) * mo_par_seconde)
+                log.warning("Fuite mémoire simulée : %s Mo retenus", retenu + mo_par_seconde)
 
         self._thread_fuite = threading.Thread(target=fuir, daemon=True)
         self._thread_fuite.start()
@@ -143,6 +158,7 @@ class EtatChaos:
         with self._verrou:
             self._fuite.clear()
         self.fuite_mo_par_seconde = 0
+        self.fuite_max_mo = None
 
     def reinitialiser(self) -> None:
         self.taux_erreurs = 0.0
@@ -156,6 +172,8 @@ class EtatChaos:
             "taux_erreurs": self.taux_erreurs,
             "latence_ms": self.latence_ms,
             "fuite_mo_par_seconde": self.fuite_mo_par_seconde,
+            "fuite_max_mo": self.fuite_max_mo,
+            "memoire_retenue_mo": self.memoire_retenue_mo(),
         }
 
 
@@ -409,11 +427,16 @@ def chaos_latence(ms: int = Query(800, ge=0, le=10000)) -> dict:
 
 
 @app.post("/chaos/memoire")
-def chaos_memoire(mo_par_seconde: int = Query(5, ge=1, le=50)) -> dict:
+def chaos_memoire(
+    mo_par_seconde: int = Query(5, ge=1, le=50),
+    max_mo: int | None = Query(None, ge=1, le=1000),
+) -> dict:
     verifier_chaos_autorise()
-    chaos.demarrer_fuite(mo_par_seconde)
+    chaos.demarrer_fuite(mo_par_seconde, max_mo)
     chaos.publier()
-    log.warning("Chaos : fuite mémoire de %s Mo par seconde", mo_par_seconde)
+    log.warning(
+        "Chaos : fuite mémoire de %s Mo par seconde (plafond : %s Mo)", mo_par_seconde, max_mo or "aucun"
+    )
     return chaos.resume()
 
 

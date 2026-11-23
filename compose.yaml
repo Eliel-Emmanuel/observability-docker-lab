@@ -55,6 +55,7 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=7d
       - --storage.tsdb.retention.size=2GB
+      - --web.external-url=http://localhost:9090
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - donnees-prometheus:/prometheus
@@ -243,6 +244,7 @@ services:
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
+      - --web.external-url=http://localhost:9093
     volumes:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - donnees-alertmanager:/alertmanager
@@ -275,6 +277,24 @@ services:
       resources:
         limits:
           memory: 64M
+
+  k6:
+    image: grafana/k6:${K6_VERSION}
+    profiles: [charge]
+    command: ["run", "/scripts/scenario.js"]
+    environment:
+      BASE_URL: http://api-commandes:8000
+    volumes:
+      - ./charge:/scripts:ro
+    networks: [app]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
 volumes:
   donnees-postgres:

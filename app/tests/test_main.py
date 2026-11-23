@@ -108,3 +108,14 @@ def test_chaos_desactive_par_defaut(client, monkeypatch):
     monkeypatch.delenv("CHAOS_ENABLED", raising=False)
     assert client.post("/chaos/erreurs").status_code == 404
     assert client.get("/chaos").status_code == 404
+
+
+def test_chaos_memoire_plafonnee(client, module):
+    import time
+
+    reponse = client.post("/chaos/memoire", params={"mo_par_seconde": 2, "max_mo": 4})
+    assert reponse.json()["fuite_max_mo"] == 4
+    time.sleep(3.5)
+    assert module.chaos.memoire_retenue_mo() == 4
+    client.post("/chaos/reset")
+    assert module.chaos.memoire_retenue_mo() == 0
