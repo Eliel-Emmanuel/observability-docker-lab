@@ -118,7 +118,7 @@ services:
           memory: 32M
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION}
+    image: ghcr.io/google/cadvisor:${CADVISOR_VERSION}
     command:
       - --docker_only=true
       - --housekeeping_interval=15s
@@ -234,7 +234,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 384M
 
 volumes:
   donnees-postgres:
