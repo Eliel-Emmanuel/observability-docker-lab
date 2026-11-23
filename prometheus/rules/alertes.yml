@@ -78,8 +78,15 @@ groups:
           description: "postgres-exporter n'arrive plus à se connecter à la base depuis une minute."
           runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/PostgresIndisponible.md"
 
+      # label_replace : les séries de cAdvisor portent service="cadvisor" (la cible
+      # collectée). On le remplace par le service Compose tiré du nom du conteneur,
+      # pour que l'alerte soit regroupée et routée avec le bon service.
       - alert: ConteneurRedemarre
-        expr: changes(container_start_time_seconds{name=~"obslab.*"}[15m]) > 2
+        expr: |
+          label_replace(
+            changes(container_start_time_seconds{name=~"obslab.*"}[15m]) > 2,
+            "service", "$1", "name", "obslab-(.+)-[0-9]+"
+          )
         labels:
           severity: warning
         annotations:
@@ -89,15 +96,22 @@ groups:
 
       # Le filtre « > 0 » écarte les conteneurs sans limite de mémoire
       # (la division par zéro donnerait l'infini et une fausse alerte).
+      # Seuil à 85 % : le working_set ne compte pas toute la mémoire du conteneur
+      # (mémoire noyau, une partie du cache). Mesuré dans le labo, l'API est tuée
+      # par manque de mémoire vers 88 % de working_set : un seuil à 90 % ne se
+      # déclencherait jamais avant l'arrêt.
       - alert: MemoireConteneurProcheLimite
         expr: |
-          container_memory_working_set_bytes{name=~"obslab.*"}
-          / (container_spec_memory_limit_bytes{name=~"obslab.*"} > 0) > 0.9
+          label_replace(
+            container_memory_working_set_bytes{name=~"obslab.*"}
+            / (container_spec_memory_limit_bytes{name=~"obslab.*"} > 0) > 0.85,
+            "service", "$1", "name", "obslab-(.+)-[0-9]+"
+          )
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "{{ $labels.name }} utilise plus de 90 % de sa limite de mémoire"
+          summary: "{{ $labels.name }} utilise plus de 85 % de sa limite de mémoire"
           description: "{{ $labels.name }} est à {{ $value | humanizePercentage }} de sa limite. Au-delà de 100 %, Docker le tue."
           runbook_url: "https://github.com/Eliel-Emmanuel/observability-docker-lab/blob/main/docs/runbooks/MemoireConteneurProcheLimite.md"
 

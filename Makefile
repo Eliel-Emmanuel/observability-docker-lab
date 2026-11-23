@@ -75,8 +75,8 @@ panne-api: ## Arrête l'API → ApiIndisponible, CibleInjoignable
 panne-db: ## Arrête PostgreSQL → PostgresIndisponible (et ApiIndisponible)
 	$(COMPOSE) stop postgres
 
-panne-memoire: ## Mémoire de l'API à ~93 % de sa limite → MemoireConteneurProcheLimite
-	curl -fsS -X POST "$(API)/chaos/memoire?mo_par_seconde=5&max_mo=75"; echo
+panne-memoire: ## Mémoire de l'API à ~87 % de sa limite → MemoireConteneurProcheLimite
+	curl -fsS -X POST "$(API)/chaos/memoire?mo_par_seconde=2&max_mo=68"; echo
 
 panne-redemarrages: ## 3 fuites mémoire, 3 arrêts par Docker (OOM) → ConteneurRedemarre
 	@for i in 1 2 3; do \

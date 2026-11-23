@@ -2,7 +2,7 @@
 
 | Version | Date | Auteur | Statut |
 | --- | --- | --- | --- |
-| 1.1 | 20 novembre 2026 | @IT-SERVICES | Validé pour réalisation |
+| 1.2 | 23 novembre 2026 | @IT-SERVICES | Réalisé : état final du labo |
 
 > Labo personnel de démonstration. L'application supervisée et ses données sont fictives. Les exigences sont identifiées (EF, ES, ENF) et chacune est reliée à une étape (section 5.2) et à un test (section 5.3).
 
@@ -41,7 +41,7 @@ L'ensemble démarre avec une seule commande et tient dans moins de 2 Go de RAM.
 
 ## 2. Architecture cible
 
-Tous les services tournent dans Docker Compose, sur deux réseaux : `app` (l'application et sa base) et `monitoring` (la chaîne de supervision). Seuls Grafana et l'application sont accessibles depuis l'hôte, et uniquement sur `127.0.0.1`.
+Tous les services tournent dans Docker Compose, sur deux réseaux : `app` (l'application et sa base) et `monitoring` (la chaîne de supervision). Seuls Grafana, l'application et Mailpit sont accessibles depuis l'hôte, et uniquement sur `127.0.0.1`. Un mode débogage (`compose.debug.yaml`) publie en plus Prometheus, Alertmanager, Loki et Alloy, toujours sur `127.0.0.1`.
 
 ```mermaid
 flowchart LR
@@ -84,7 +84,7 @@ flowchart LR
 
 **Poste hôte du labo : HP EliteBook, processeur Intel Core i5, 8 Go de RAM, Windows 11.**
 
-- Docker Desktop pour Windows, moteur WSL2, avec une distribution Ubuntu installée dans WSL2 et l'intégration Docker activée pour elle.
+- Ubuntu dans WSL2, avec **Docker Engine et le plugin Docker Compose installés directement dans Ubuntu** (dépôt officiel Docker), sans Docker Desktop. Docker Desktop isole son moteur dans une VM à part : cAdvisor n'y voit ni containerd ni les cgroups des conteneurs, et node-exporter ne peut pas lire `/proc`. Avec Docker Engine natif, WSL2 se comporte comme un serveur Linux et la RAM de la VM Docker Desktop est économisée.
 - Mémoire de WSL2 limitée dans `%UserProfile%\.wslconfig`, pour laisser de la marge à Windows :
 
 ```ini
@@ -97,27 +97,27 @@ swap=2GB
 - Le dépôt est cloné **dans le système de fichiers d'Ubuntu** (`~/observability-docker-lab`), pas dans `C:\`. Les montages de fichiers de configuration y sont plus rapides et fiables, et `make`, `bash` et `git` y sont disponibles (`sudo apt install make git`).
 - Fichier `.gitattributes` avec `* text=auto eol=lf` : les fichiers de configuration et les scripts gardent des fins de ligne Linux, même s'ils sont ouverts sous Windows.
 - 5 Go de disque libre.
-- Docker Desktop active Hyper-V et WSL2 : VirtualBox fonctionne alors en mode ralenti. Ne pas faire tourner ce labo en même temps que des VM VirtualBox.
+- WSL2 utilise la plateforme de virtualisation de Windows : VirtualBox fonctionne alors en mode ralenti. Ne pas faire tourner ce labo en même temps que des VM VirtualBox.
 - Pendant les séances : navigateur limité à quelques onglets, applications lancées au démarrage désactivées.
 
 ### 2.2 Services
 
 | Service | Image | Rôle | Port exposé | Limite RAM |
 | --- | --- | --- | --- | --- |
-| api-commandes | construite depuis `app/` | API de démonstration, instrumentée | 127.0.0.1:8000 | 128 Mo |
+| api-commandes | construite depuis `app/` | API de démonstration, instrumentée | 127.0.0.1:8000 | 128 Mo, sans swap |
 | postgres | `postgres` 17 | Base de l'API | aucun | 192 Mo |
 | prometheus | `prom/prometheus` 3.13 (LTS) | Collecte et stockage des métriques, évaluation des règles | aucun | 384 Mo |
-| alertmanager | `prom/alertmanager` | Regroupement, routage et envoi des alertes | aucun | 64 Mo |
-| loki | `grafana/loki` 3.x, mode monolithique | Stockage des journaux, règles d'alerte sur journaux | aucun | 256 Mo |
-| alloy | `grafana/alloy` | Lecture des journaux Docker et envoi à Loki | aucun | 128 Mo |
-| grafana | `grafana/grafana` | Tableaux de bord, exploration | 127.0.0.1:3000 | 192 Mo |
+| alertmanager | `prom/alertmanager` v0.35 | Regroupement, routage et envoi des alertes | aucun | 64 Mo |
+| loki | `grafana/loki` 3.7, mode monolithique | Stockage des journaux, règles d'alerte sur journaux | aucun | 256 Mo |
+| alloy | `grafana/alloy` v1.22 | Lecture des journaux Docker et envoi à Loki | aucun | 192 Mo |
+| grafana | `grafana/grafana` 13.3 | Tableaux de bord, exploration | 127.0.0.1:3000 | 384 Mo |
 | node-exporter | `prom/node-exporter` | Métriques de l'hôte (ici la VM WSL2 qui fait tourner Docker) | aucun | 32 Mo |
-| cadvisor | `gcr.io/cadvisor/cadvisor` | Métriques par conteneur | aucun | 128 Mo |
+| cadvisor | `ghcr.io/google/cadvisor` v0.60 | Métriques par conteneur | aucun | 128 Mo |
 | postgres-exporter | `prometheuscommunity/postgres-exporter` | Métriques de PostgreSQL | aucun | 32 Mo |
 | blackbox-exporter | `prom/blackbox-exporter` | Sonde HTTP externe de l'API | aucun | 32 Mo |
 | mailpit | `axllent/mailpit` | Boîte mail locale qui reçoit les notifications | 127.0.0.1:8025 | 64 Mo |
 | k6 | `grafana/k6` | Générateur de charge, lancé à la demande (profil `charge`) | aucun | 128 Mo |
-| **Total** | | | | **environ 1,8 Go au maximum**, environ 1,1 Go en usage réel |
+| **Total** | | | | **environ 2 Go au maximum** (limites cumulées), environ 1,1 Go en usage réel |
 
 Toutes les versions sont épinglées dans `.env` (jamais le tag `latest`). Promtail n'est pas utilisé : il est en fin de vie depuis le 2 mars 2026, et Grafana Alloy le remplace.
 
@@ -141,7 +141,7 @@ Ces exigences décrivent l'application fournie dans `app/` ; elles servent de co
 - **EF-01** — Écrire `api-commandes`, une API Python (FastAPI) qui stocke des commandes dans PostgreSQL : `GET /commandes`, `POST /commandes`, `GET /sante` (vérification de la base comprise).
 - **EF-02** — Instrumenter l'API avec `prometheus_client` selon la méthode RED : nombre de requêtes et d'erreurs par route et par code HTTP (`http_requests_total`), durée des requêtes en histogramme (`http_request_duration_seconds`), plus une métrique métier (`commandes_creees_total`). Métriques exposées sur `/metrics`.
 - **EF-03** — Écrire les journaux en JSON sur la sortie standard : horodatage, niveau, route, code HTTP, durée, identifiant de requête.
-- **EF-04** — Exposer des points d'injection de pannes, actifs uniquement si `CHAOS_ENABLED=true` : `POST /chaos/erreurs?taux=0.3` (part de réponses 500), `POST /chaos/latence?ms=800` (latence ajoutée), `POST /chaos/reset`.
+- **EF-04** — Exposer des points d'injection de pannes, actifs uniquement si `CHAOS_ENABLED=true` : `POST /chaos/erreurs?taux=0.3` (part de réponses 500), `POST /chaos/latence?ms=800` (latence ajoutée), `POST /chaos/memoire?mo_par_seconde=2&max_mo=68` (fuite mémoire, plafonnée ou non), `POST /chaos/reset`.
 - **EF-05** — Construire l'image avec un Dockerfile multi-étapes, utilisateur non root, image finale de moins de 200 Mo, vérification de santé (`HEALTHCHECK`).
 
 ### 3.2 Métriques
@@ -160,7 +160,7 @@ Ces exigences décrivent l'application fournie dans `app/` ; elles servent de co
 ### 3.4 Tableaux de bord
 
 - **EF-13** — Grafana est provisionné par fichiers : sources de données (Prometheus, Loki, Alertmanager) et tableaux de bord dans `grafana/`. Aucun réglage n'est fait à la main dans l'interface.
-- **EF-14** — Quatre tableaux de bord, rangés dans un dossier `Labo` :
+- **EF-14** — Tableaux de bord rangés dans un dossier `Labo`. Réalisés : « Service — api-commandes (RED) », avec les journaux d'erreur intégrés, et « Conteneurs (USE) ». « Hôte » et « Journaux » restent à faire (section 6.3) ; l'exploration des journaux se fait dans Grafana Explore :
 
 | Tableau de bord | Contenu |
 | --- | --- |
@@ -169,7 +169,7 @@ Ces exigences décrivent l'application fournie dans `app/` ; elles servent de co
 | Hôte (USE) | CPU, mémoire, disque, charge |
 | Journaux | Volume par niveau et par service, derniers journaux d'erreur, recherche libre |
 
-- **EF-15** — Corrélation : depuis un pic d'erreurs sur le tableau de bord du service, un lien ouvre les journaux d'erreur de la même période dans Loki.
+- **EF-15** — Corrélation : les journaux d'erreur de l'API sont affichés sur le tableau de bord du service, sur la même période que les graphiques.
 
 ### 3.5 Indicateurs et objectifs de service
 
@@ -190,21 +190,21 @@ Ces exigences décrivent l'application fournie dans `app/` ; elles servent de co
 | LatenceElevee | p95 supérieur à 500 ms | 5 min | warning |
 | BudgetErreurRapide | Consommation du budget d'erreur 14 fois plus rapide que prévu (fenêtres 5 min et 1 h) | 2 min | critical |
 | ConteneurRedemarre | Plus de 2 redémarrages en 15 min | immédiate | warning |
-| MemoireConteneurProcheLimite | Plus de 90 % de la limite RAM | 5 min | warning |
+| MemoireConteneurProcheLimite | Plus de 85 % de la limite RAM | 5 min | warning |
 | DisqueHotePresquePlein | Moins de 15 % d'espace libre | 10 min | warning |
 | PostgresIndisponible | `pg_up == 0` | 1 min | critical |
 | Watchdog | Toujours active | — | none |
 
 - **EF-18** — Règle d'alerte sur les journaux, évaluée par le ruler de Loki : `ErreursApplicatives`, plus de 20 journaux de niveau `ERROR` en 5 minutes pour un même service.
 - **EF-19** — Alertmanager regroupe par `alertname` et `service`, attend 30 s avant le premier envoi, renvoie toutes les 4 h tant que l'alerte dure, et envoie un message de résolution.
-- **EF-20** — Routage : `critical` et `warning` vers Mailpit ; `critical` aussi vers Telegram si les variables `TELEGRAM_BOT_TOKEN` et `TELEGRAM_CHAT_ID` sont définies. `Watchdog` est routée vers un récepteur dédié qui prouve que la chaîne d'alerte fonctionne.
-- **EF-21** — Règle d'inhibition : si `ApiIndisponible` est active, `TauxErreursEleve` et `LatenceElevee` ne sont pas envoyées pour le même service.
+- **EF-20** — Routage : `critical` vers `astreinte@labo.local`, `warning` vers `equipe@labo.local`, tous deux dans Mailpit. `Watchdog` est routée vers un récepteur dédié (`watchdog@labo.local`) qui prouve que la chaîne d'alerte fonctionne. Telegram reste une option non configurée (section 6.3).
+- **EF-21** — Règle d'inhibition : si `ApiIndisponible` est active, `TauxErreursEleve`, `LatenceElevee` et `BudgetErreurRapide` ne sont pas envoyées pour le même service.
 - **EF-22** — Chaque alerte a une page de procédure dans `docs/runbooks/` : signification, impact, premiers diagnostics (requêtes PromQL et LogQL prêtes à copier), résolution, prévention.
 - **EF-25** — Tests unitaires des règles d'alerte (`prometheus/tests/*.yml`) : pour chaque alerte, une série de données simulée qui doit la déclencher et une qui ne doit pas la déclencher.
 
 ### 3.7 Charge et injection de pannes
 
-- **EF-23** — Un scénario k6 (`charge/scenario.js`) envoie un trafic réaliste : 80 % de lectures, 20 % de créations, 10 à 30 utilisateurs virtuels, 10 minutes.
+- **EF-23** — Un scénario k6 (`charge/scenario.js`) envoie un trafic réaliste : 80 % de lectures, 20 % de créations, montée à 10 puis palier à 20 utilisateurs virtuels, 10 minutes (2 minutes avec `make charge-courte`).
 - **EF-24** — Les cibles `make` déclenchent chaque panne et la font cesser :
 
 | Commande | Panne simulée | Alerte attendue |
@@ -213,7 +213,8 @@ Ces exigences décrivent l'application fournie dans `app/` ; elles servent de co
 | `make panne-latence` | 800 ms ajoutées | LatenceElevee |
 | `make panne-api` | Arrêt du conteneur de l'API | ApiIndisponible, CibleInjoignable (TauxErreursEleve inhibée) |
 | `make panne-db` | Arrêt de PostgreSQL | PostgresIndisponible |
-| `make panne-memoire` | Fuite mémoire simulée dans l'API | MemoireConteneurProcheLimite, puis ConteneurRedemarre |
+| `make panne-memoire` | Fuite mémoire plafonnée, vers 87 % de la limite | MemoireConteneurProcheLimite |
+| `make panne-redemarrages` | Trois fuites rapides : l'API est tuée trois fois par manque de mémoire | ConteneurRedemarre |
 | `make retablir` | Fin de toutes les pannes | Messages de résolution |
 
 ## 4. Exigences de sécurité et non fonctionnelles
@@ -221,12 +222,12 @@ Ces exigences décrivent l'application fournie dans `app/` ; elles servent de co
 ### 4.1 Sécurité
 
 - **ES-01** — Aucun secret dans le dépôt : mots de passe (Grafana, PostgreSQL) et jetons (Telegram) dans un fichier `.env` ignoré par git ; un modèle `.env.example` sans valeur réelle est fourni.
-- **ES-02** — Seuls Grafana, l'API et Mailpit sont publiés, et uniquement sur `127.0.0.1`. Prometheus, Loki et Alertmanager ne sont joignables que par le réseau `monitoring`, ou depuis Grafana.
+- **ES-02** — Seuls Grafana, l'API et Mailpit sont publiés, et uniquement sur `127.0.0.1`. Prometheus, Loki et Alertmanager ne sont joignables que par le réseau `monitoring`, ou depuis Grafana, sauf en mode débogage (`make up-debug`), réservé au poste de travail.
 - **ES-03** — Grafana : compte administrateur défini dans `.env`, accès anonyme et inscription désactivés.
 - **ES-04** — Conteneurs durcis lorsque l'image le permet : utilisateur non root, système de fichiers en lecture seule, `no-new-privileges`, capacités Linux retirées (`cap_drop: [ALL]`).
-- **ES-05** — Le socket Docker est monté en lecture seule, uniquement dans Alloy et cAdvisor ; ce risque est documenté.
+- **ES-05** — Le socket Docker est monté en lecture seule, uniquement dans Alloy et cAdvisor ; ce risque, comme cAdvisor privilégié et `pid: host` pour node-exporter, est documenté dans `docs/securite.md`. postgres-exporter utilise un compte dédié membre de `pg_monitor`, sans accès aux données.
 - **ES-06** — Les images sont analysées par Trivy en CI ; aucune vulnérabilité critique corrigeable n'est acceptée dans l'image de l'API.
-- **ES-07** — Les points d'injection de pannes sont désactivés par défaut (`CHAOS_ENABLED=false`).
+- **ES-07** — Les points d'injection de pannes sont désactivés par défaut dans l'application (`CHAOS_ENABLED=false`) ; le modèle `.env.example` du labo les active.
 
 ### 4.2 Non fonctionnel
 
@@ -239,10 +240,10 @@ Ces exigences décrivent l'application fournie dans `app/` ; elles servent de co
   - `promtool check config` et `promtool check rules` ;
   - `promtool test rules` (tests unitaires des alertes, EF-25) ;
   - `amtool check-config` ;
-  - validation de la configuration Alloy (`alloy fmt`) ;
-  - hadolint (Dockerfile), yamllint, ruff et pytest (application) ;
-  - Trivy (image de l'API) et gitleaks (secrets) ;
-  - un test de bout en bout : démarrage de la pile sur le runner, vérification que toutes les cibles Prometheus sont `up`.
+  - validation de la configuration Alloy ;
+  - hadolint (Dockerfile), yamllint, shellcheck, ruff et pytest (application) ;
+  - Trivy (image de l'API) et gitleaks (secrets), depuis leurs images officielles épinglées ; actions GitHub épinglées par SHA ;
+  - un test de bout en bout : démarrage de la pile sur le runner, puis `tests/e2e.sh` (API, 10 cibles `up`, règles chargées, sonde, journaux dans Loki, Alertmanager, mail Watchdog dans Mailpit).
 - **ENF-06 Documentation** — Une page par étape : objectif, actions, commandes, résultat attendu, preuve (capture ou sortie de commande).
 - **ENF-07 Nommage** — Services en minuscules avec tirets, alertes en PascalCase, métriques au format Prometheus (`_total`, `_seconds`).
 
@@ -275,11 +276,14 @@ observability-docker-lab/
 │   ├── provisioning/          # sources de données, fournisseurs de tableaux de bord
 │   └── dashboards/            # JSON des 4 tableaux de bord
 ├── charge/scenario.js         # k6
+├── compose.debug.yaml         # ports de débogage (127.0.0.1)
+├── postgres/init/             # compte de supervision pg_monitor
+├── tests/e2e.sh               # test de bout en bout
 ├── docs/
 │   ├── 00-cahier-des-charges.md
-│   ├── 01-architecture.md
-│   ├── 02-… une page par étape
-│   ├── slo.md
+│   ├── 01-architecture.md … 09-ci-et-securite.md   # une page par étape
+│   ├── 10-resultats.md        # mesures des pannes
+│   ├── securite.md
 │   └── runbooks/              # une page par alerte (EF-22)
 └── captures/
 ```
@@ -335,7 +339,7 @@ Le suivi se fait dans GitHub : un jalon par étape, une issue par exigence, ferm
 | Stockage des journaux | Disque local, 7 jours | Stockage objet (S3), rétention selon les obligations légales |
 | Notifications | Mailpit, Telegram en option | Outil d'astreinte (PagerDuty, Opsgenie, Grafana OnCall) avec planning |
 | Accès | Localhost, mot de passe | SSO, rôles, TLS partout |
-| Métriques de l'hôte | VM WSL2 de Docker Desktop | Vrai serveur |
+| Métriques de l'hôte | VM WSL2 (Docker Engine) | Vrai serveur |
 
 ### 6.2 Risques et parades
 
@@ -347,7 +351,8 @@ Le suivi se fait dans GitHub : un jalon par étape, une issue par exigence, ferm
 | Exposition des services | Faible | Élevé | Publication sur 127.0.0.1 uniquement, ES-02 testé |
 | Fuite d'un jeton Telegram | Faible | Moyen | `.env` ignoré, gitleaks en CI, jeton révocable |
 | Mémoire insuffisante sur l'hôte de 8 Go | Moyenne | Moyen | WSL2 limité à 3 Go, limites RAM par service, k6 lancé seulement à la demande |
-| cAdvisor incomplet sous Docker Desktop (WSL2) | Moyenne | Faible | Vérifier les métriques par conteneur dès l'étape 3 ; à défaut, s'appuyer sur les métriques de Docker Engine (`metrics-addr`) |
+| cAdvisor incomplet sous Docker Desktop (WSL2) | Survenu | Moyen | Docker Engine installé directement dans Ubuntu (WSL2) à la place de Docker Desktop |
+| Swap de WSL2 qui masque la saturation mémoire d'un conteneur | Survenu | Moyen | `memswap_limit` égal à la limite pour l'API, seuil mémoire à 85 % ; surveiller aussi `container_memory_swap` |
 | Fins de ligne Windows qui cassent un fichier de configuration | Moyenne | Moyen | Dépôt cloné dans WSL2, `.gitattributes` en LF |
 | Conflit avec VirtualBox | Faible | Moyen | Ne pas lancer ce labo en même temps que des VM VirtualBox |
 
@@ -356,7 +361,8 @@ Le suivi se fait dans GitHub : un jalon par étape, une issue par exigence, ferm
 - Traces distribuées avec OpenTelemetry et Tempo, et lien trace → journaux → métriques
 - Déploiement de la même pile sur Kubernetes (kind ou k3d) avec le chart `kube-prometheus-stack`
 - Supervision des VM du labo windows-server-ad-lab (windows_exporter, journaux d'événements via Alloy)
-- Grafana OnCall ou planning d'astreinte
+- Grafana OnCall ou planning d'astreinte ; notifications Telegram
+- Tableaux de bord « Hôte (USE) » et « Journaux » ; lien direct d'un panneau vers Grafana Explore
 - Tableaux de bord générés en code (Grafonnet ou SDK Grafana Foundation)
 
 ### 6.4 Glossaire
@@ -381,3 +387,4 @@ Le suivi se fait dans GitHub : un jalon par étape, une issue par exigence, ferm
 | --- | --- | --- |
 | 1.0 | 20 novembre 2026 | Première version |
 | 1.1 | 20 novembre 2026 | Hôte Windows (EliteBook, 8 Go) : Docker Desktop WSL2, `.wslconfig`, dépôt dans WSL2, `.gitattributes` ; application fournie dans `app/` ; risques Windows ; durée recalculée |
+| 1.2 | 23 novembre 2026 | État final : Docker Engine natif dans WSL2 au lieu de Docker Desktop ; versions et limites RAM réelles (Alloy 192 Mo, Grafana 384 Mo, API sans swap) ; mode débogage ; pannes de fuite mémoire et de redémarrages ; seuil mémoire à 85 % ; inhibition étendue à BudgetErreurRapide ; compte `pg_monitor` ; CI complète ; tableaux de bord réalisés et écarts (EF-14, EF-15, EF-20) ; risques survenus (cAdvisor, swap) |

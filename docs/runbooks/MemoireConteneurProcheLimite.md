@@ -6,7 +6,7 @@
 
 ## Ce que signifie l'alerte
 
-Un conteneur utilise plus de 90 % de sa limite de mémoire depuis 5 minutes.
+Un conteneur utilise plus de 85 % de sa limite de mémoire depuis 5 minutes.
 
 ## Impact
 
@@ -47,6 +47,10 @@ chaos_actif{type="memoire_mo_par_seconde"}
 ## À savoir
 
 C'est grâce à ce type de mesure que la limite de Grafana a été relevée de 256 à 384 Mo à l'étape 5.
+
+Si le conteneur a droit au swap, le noyau y envoie l'excédent quand la limite approche : la mémoire mesurée (`working_set`) plafonne alors sous le seuil et l'alerte ne se déclenche pas, alors que le service ralentit. Vérifier `container_memory_swap` en plus du `working_set`. Dans le labo, l'API n'a pas de swap (`memswap_limit` égal à sa limite).
+
+Le `working_set` ne compte pas toute la mémoire facturée au conteneur. Mesuré dans le labo, l'API est tuée vers 88 % de `working_set` : c'est pourquoi le seuil est à 85 %, et non à 90 %.
 
 ---
 
