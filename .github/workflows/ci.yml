@@ -72,3 +72,7 @@ jobs:
       - run: >
           docker run --rm -v "$PWD/alloy:/etc/alloy:ro"
           grafana/alloy:v1.22.0 fmt /etc/alloy/config.alloy
+      - run: >
+          docker run --rm -v "$PWD/prometheus:/p:ro" -w /p/tests
+          --entrypoint promtool prom/prometheus:v3.13.5
+          test rules slo-test.yml
