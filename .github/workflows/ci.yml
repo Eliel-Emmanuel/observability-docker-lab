@@ -47,6 +47,7 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   compose:
     name: Compose (syntaxe)
     runs-on: ubuntu-latest
@@ -60,10 +61,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: >
+      - name: Vérifier la configuration et les règles
+        run: >
           docker run --rm -v "$PWD/prometheus:/etc/prometheus:ro"
           --entrypoint promtool prom/prometheus:v3.13.5
           check config /etc/prometheus/prometheus.yml
+      - name: Tests unitaires des règles SLO
+        run: >
+          docker run --rm -v "$PWD/prometheus:/p:ro" -w /p/tests
+          --entrypoint promtool prom/prometheus:v3.13.5
+          test rules slo-test.yml
+
   alloy:
     name: Alloy (validation)
     runs-on: ubuntu-latest
@@ -72,7 +80,3 @@ jobs:
       - run: >
           docker run --rm -v "$PWD/alloy:/etc/alloy:ro"
           grafana/alloy:v1.22.0 fmt /etc/alloy/config.alloy
-      - run: >
-          docker run --rm -v "$PWD/prometheus:/p:ro" -w /p/tests
-          --entrypoint promtool prom/prometheus:v3.13.5
-          test rules slo-test.yml
